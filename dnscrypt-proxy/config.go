@@ -59,6 +59,7 @@ type Config struct {
 	CacheMaxTTL              uint32                      `toml:"cache_max_ttl"`
 	RejectTTL                uint32                      `toml:"reject_ttl"`
 	CloakTTL                 uint32                      `toml:"cloak_ttl"`
+	ForwardFallbackTTL       uint32                      `toml:"forward_fallback_ttl"`
 	QueryLog                 QueryLogConfig              `toml:"query_log"`
 	NxLog                    NxLogConfig                 `toml:"nx_log"`
 	BlockName                BlockNameConfig             `toml:"blocked_names"`
@@ -125,6 +126,7 @@ func newConfig() Config {
 		CacheMaxTTL:              86400,
 		RejectTTL:                600,
 		CloakTTL:                 600,
+		ForwardFallbackTTL:       600,
 		SourceRequireNoLog:       true,
 		SourceRequireNoFilter:    true,
 		SourceIPv4:               true,
@@ -483,6 +485,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.cacheMaxTTL = config.CacheMaxTTL
 	proxy.rejectTTL = config.RejectTTL
 	proxy.cloakTTL = config.CloakTTL
+	proxy.ForwardFallbackTTL = config.ForwardFallbackTTL
 
 	proxy.queryMeta = config.QueryMeta
 

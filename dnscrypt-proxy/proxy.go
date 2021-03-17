@@ -83,6 +83,7 @@ type Proxy struct {
 	cacheMinTTL                   uint32
 	cacheNegMaxTTL                uint32
 	cloakTTL                      uint32
+	ForwardFallbackTTL            uint32
 	cache                         bool
 	pluginBlockIPv6               bool
 	ephemeralKeys                 bool

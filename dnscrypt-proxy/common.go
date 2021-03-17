@@ -133,6 +133,17 @@ func StringTwoFields(str string) (string, string, bool) {
 	return a, b, true
 }
 
+func StringThreeFields(str string) (string, string, string, bool) {
+
+	a, remainder, ok := StringTwoFields(str)
+	if !ok {
+		return "", "", "", false
+	}
+
+	b, c, ok := StringTwoFields(remainder)
+	return a, b, c, ok
+}
+
 func StringQuote(str string) string {
 	str = strconv.QuoteToGraphic(str)
 	return str[1 : len(str)-1]
