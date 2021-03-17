@@ -124,10 +124,20 @@ func (plugin *PluginForward) Eval(pluginsState *PluginsState, msg *dns.Msg) erro
 		synth := EmptyResponseFromMessage(msg)
 		synth.Rcode = dns.RcodeSuccess
 		synth.Answer = []dns.RR{}
-		rr := new(dns.A)
-		rr.Hdr = dns.RR_Header{Name: msg.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: plugin.fallbackTTL}
-		rr.A = ParseIP(fallback)
-		synth.Answer = append(synth.Answer, rr)
+		parsedIP := ParseIP(fallback)
+		if parsedIP != nil {
+			rr := new(dns.A)
+			rr.Hdr = dns.RR_Header{Name: msg.Question[0].Name, Rrtype: dns.TypeA, Class: dns.ClassINET, Ttl: plugin.fallbackTTL}
+			rr.A = parsedIP
+			synth.Answer = append(synth.Answer, rr)
+
+		} else {
+			rr := new(dns.CNAME)
+			rr.Hdr = dns.RR_Header{Name: msg.Question[0].Name, Rrtype: dns.TypeCNAME, Class: dns.ClassINET, Ttl: plugin.fallbackTTL}
+			rr.Target = dns.Fqdn(fallback)
+			synth.Answer = append(synth.Answer, rr)
+		}
+
 		respMsg = synth
 	}
 
