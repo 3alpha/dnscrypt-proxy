@@ -119,7 +119,7 @@ func (plugin *PluginForward) Eval(pluginsState *PluginsState, msg *dns.Msg) erro
 	}
 
 	if respMsg.Rcode == dns.RcodeNameError && fallback != "" {
-		dlog.Noticef("Generating fallback response, fallback ip: %s", fallback)
+		dlog.Noticef("Generating fallback response, fallback: %s", fallback)
 		synth := EmptyResponseFromMessage(msg)
 		synth.Rcode = dns.RcodeSuccess
 		synth.Answer = []dns.RR{}
