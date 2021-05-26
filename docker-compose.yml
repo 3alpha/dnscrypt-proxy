@@ -1,16 +1,9 @@
-#version: "3.4"
-#services:
-#  dnscrypt-proxy.public.dappnode.eth:
-#    build: .
-#    image: "dnscrypt-proxy.public.dappnode.eth:0.1.0"
-#    restart: unless-stopped
-
 version: "3.5"
 services:
-  dnscrypt-proxy.dnp.dappnode.eth:
+  bindv2.dnp.dappnode.eth:
     build: .
-    image: "dnscrypt-proxy.public.dappnode.eth:0.1.0"
-    container_name: DAppNodeCore-dnscrypt-proxy.dnp.dappnode.eth
+    image: "bindv2.dappnode.eth:0.1.0"
+    container_name: DAppNodeCore-bindv2.dnp.dappnode.eth
     restart: always
     networks:
       dncore_network:
