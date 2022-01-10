@@ -53,7 +53,7 @@ github.com/jedisct1/xsecretbox
 # github.com/k-sone/critbitgo v1.4.0
 ## explicit
 github.com/k-sone/critbitgo
-# github.com/kardianos/service v1.2.0
+# github.com/kardianos/service v1.2.1
 ## explicit
 github.com/kardianos/service
 # github.com/miekg/dns v1.1.41
