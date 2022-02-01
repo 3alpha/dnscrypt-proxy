@@ -100,7 +100,7 @@ force_tcp = false
 
 ## How long a DNS query will wait for a response, in milliseconds
 
-timeout = 2500
+timeout = 10000
 
 
 ## Keepalive for HTTP (HTTPS, HTTP/2) queries, in seconds
