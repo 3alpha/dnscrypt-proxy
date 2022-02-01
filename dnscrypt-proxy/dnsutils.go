@@ -72,7 +72,7 @@ func RefusedResponseFromMessage(srcMsg *dns.Msg, refusedCode bool, ipv4 net.IP, 
 		if sendHInfoResponse {
 			hinfo := new(dns.HINFO)
 			hinfo.Hdr = dns.RR_Header{Name: question.Name, Rrtype: dns.TypeHINFO,
-				Class: dns.ClassINET, Ttl: 1}
+				Class: dns.ClassINET, Ttl: ttl}
 			hinfo.Cpu = "This query has been locally blocked"
 			hinfo.Os = "by dnscrypt-proxy"
 			dstMsg.Answer = []dns.RR{hinfo}
@@ -196,6 +196,9 @@ func updateTTL(msg *dns.Msg, expiration time.Time) {
 	ttl := uint32(0)
 	if until > 0 {
 		ttl = uint32(until / time.Second)
+		if until-time.Duration(ttl)*time.Second >= time.Second/2 {
+			ttl += 1
+		}
 	}
 	for _, rr := range msg.Answer {
 		rr.Header().Ttl = ttl

@@ -36,20 +36,19 @@ type Config struct {
 	DisabledServerNames      []string       `toml:"disabled_server_names"`
 	ListenAddresses          []string       `toml:"listen_addresses"`
 	LocalDoH                 LocalDoHConfig `toml:"local_doh"`
-	Daemonize                bool
-	UserName                 string `toml:"user_name"`
-	ForceTCP                 bool   `toml:"force_tcp"`
-	Timeout                  int    `toml:"timeout"`
-	KeepAlive                int    `toml:"keepalive"`
-	Proxy                    string `toml:"proxy"`
-	CertRefreshDelay         int    `toml:"cert_refresh_delay"`
-	CertIgnoreTimestamp      bool   `toml:"cert_ignore_timestamp"`
-	EphemeralKeys            bool   `toml:"dnscrypt_ephemeral_keys"`
-	LBStrategy               string `toml:"lb_strategy"`
-	LBEstimator              bool   `toml:"lb_estimator"`
-	BlockIPv6                bool   `toml:"block_ipv6"`
-	BlockUnqualified         bool   `toml:"block_unqualified"`
-	BlockUndelegated         bool   `toml:"block_undelegated"`
+	UserName                 string         `toml:"user_name"`
+	ForceTCP                 bool           `toml:"force_tcp"`
+	Timeout                  int            `toml:"timeout"`
+	KeepAlive                int            `toml:"keepalive"`
+	Proxy                    string         `toml:"proxy"`
+	CertRefreshDelay         int            `toml:"cert_refresh_delay"`
+	CertIgnoreTimestamp      bool           `toml:"cert_ignore_timestamp"`
+	EphemeralKeys            bool           `toml:"dnscrypt_ephemeral_keys"`
+	LBStrategy               string         `toml:"lb_strategy"`
+	LBEstimator              bool           `toml:"lb_estimator"`
+	BlockIPv6                bool           `toml:"block_ipv6"`
+	BlockUnqualified         bool           `toml:"block_unqualified"`
+	BlockUndelegated         bool           `toml:"block_undelegated"`
 	Cache                    bool
 	CacheSize                int                         `toml:"cache_size"`
 	CacheNegTTL              uint32                      `toml:"cache_neg_ttl"`
@@ -80,6 +79,7 @@ type Config struct {
 	SourceRequireNoFilter    bool                        `toml:"require_nofilter"`
 	SourceDNSCrypt           bool                        `toml:"dnscrypt_servers"`
 	SourceDoH                bool                        `toml:"doh_servers"`
+	SourceODoH               bool                        `toml:"odoh_servers"`
 	SourceIPv4               bool                        `toml:"ipv4_servers"`
 	SourceIPv6               bool                        `toml:"ipv6_servers"`
 	MaxClients               uint32                      `toml:"max_clients"`
@@ -99,6 +99,7 @@ type Config struct {
 	RefusedCodeInResponses   bool                        `toml:"refused_code_in_responses"`
 	BlockedQueryResponse     string                      `toml:"blocked_query_response"`
 	QueryMeta                []string                    `toml:"query_meta"`
+	CloakedPTR               bool                        `toml:"cloak_ptr"`
 	AnonymizedDNS            AnonymizedDNSConfig         `toml:"anonymized_dns"`
 	DoHClientX509Auth        DoHClientX509AuthConfig     `toml:"doh_client_x509_auth"`
 	DoHClientX509AuthLegacy  DoHClientX509AuthConfig     `toml:"tls_client_auth"`
@@ -133,6 +134,7 @@ func newConfig() Config {
 		SourceIPv6:               false,
 		SourceDNSCrypt:           true,
 		SourceDoH:                true,
+		SourceODoH:               false,
 		MaxClients:               250,
 		BootstrapResolvers:       []string{DefaultBootstrapResolver},
 		IgnoreSystemDNS:          false,
@@ -155,6 +157,7 @@ func newConfig() Config {
 		AnonymizedDNS: AnonymizedDNSConfig{
 			DirectCertFallback: true,
 		},
+		CloakedPTR: false,
 	}
 }
 
@@ -371,6 +374,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.xTransport.tlsCipherSuite = config.TLSCipherSuite
 	proxy.xTransport.mainProto = proxy.mainProto
 	if len(config.BootstrapResolvers) == 0 && len(config.BootstrapResolversLegacy) > 0 {
+		dlog.Warnf("fallback_resolvers was renamed to bootstrap_resolvers - Please update your configuration")
 		config.BootstrapResolvers = config.BootstrapResolversLegacy
 	}
 	if len(config.BootstrapResolvers) > 0 {
@@ -466,7 +470,6 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.localDoHPath = config.LocalDoH.Path
 	proxy.localDoHCertFile = config.LocalDoH.CertFile
 	proxy.localDoHCertKeyFile = config.LocalDoH.CertKeyFile
-	proxy.daemonize = config.Daemonize
 	proxy.pluginBlockIPv6 = config.BlockIPv6
 	proxy.pluginBlockUnqualified = config.BlockUnqualified
 	proxy.pluginBlockUndelegated = config.BlockUndelegated
@@ -486,6 +489,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.rejectTTL = config.RejectTTL
 	proxy.cloakTTL = config.CloakTTL
 	proxy.ForwardFallbackTTL = config.ForwardFallbackTTL
+	proxy.cloakedPTR = config.CloakedPTR
 
 	proxy.queryMeta = config.QueryMeta
 
@@ -621,17 +625,20 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	if config.DoHClientX509AuthLegacy.Creds != nil {
 		return errors.New("[tls_client_auth] has been renamed to [doh_client_x509_auth] - Update your config file")
 	}
-	configClientCreds := config.DoHClientX509Auth.Creds
-	creds := make(map[string]DOHClientCreds)
-	for _, configClientCred := range configClientCreds {
-		credFiles := DOHClientCreds{
+	dohClientCreds := config.DoHClientX509Auth.Creds
+	if len(dohClientCreds) > 0 {
+		dlog.Noticef("Enabling TLS authentication")
+		configClientCred := dohClientCreds[0]
+		if len(dohClientCreds) > 1 {
+			dlog.Fatal("Only one tls_client_auth entry is currently supported")
+		}
+		proxy.xTransport.tlsClientCreds = DOHClientCreds{
 			clientCert: configClientCred.ClientCert,
 			clientKey:  configClientCred.ClientKey,
 			rootCA:     configClientCred.RootCA,
 		}
-		creds[configClientCred.ServerName] = credFiles
+		proxy.xTransport.rebuildTransport()
 	}
-	proxy.dohCreds = &creds
 
 	// Backwards compatibility
 	config.BrokenImplementations.FragmentsBlocked = append(config.BrokenImplementations.FragmentsBlocked, config.BrokenImplementations.BrokenQueryPadding...)
@@ -651,6 +658,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 		config.SourceIPv6 = true
 		config.SourceDNSCrypt = true
 		config.SourceDoH = true
+		config.SourceODoH = true
 	}
 
 	var requiredProps stamps.ServerInformalProperties
@@ -670,6 +678,7 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.SourceIPv6 = config.SourceIPv6
 	proxy.SourceDNSCrypt = config.SourceDNSCrypt
 	proxy.SourceDoH = config.SourceDoH
+	proxy.SourceODoH = config.SourceODoH
 
 	netprobeTimeout := config.NetprobeTimeout
 	flag.Visit(func(flag *flag.Flag) {
@@ -751,7 +760,7 @@ func (config *Config) printRegisteredServers(proxy *Proxy, jsonOutput bool) erro
 		var hostAddr string
 		hostAddr, port = ExtractHostAndPort(addrStr, port)
 		addrs := make([]string, 0)
-		if registeredServer.stamp.Proto == stamps.StampProtoTypeDoH && len(registeredServer.stamp.ProviderName) > 0 {
+		if (registeredServer.stamp.Proto == stamps.StampProtoTypeDoH || registeredServer.stamp.Proto == stamps.StampProtoTypeODoHTarget) && len(registeredServer.stamp.ProviderName) > 0 {
 			providerName := registeredServer.stamp.ProviderName
 			var host string
 			host, port = ExtractHostAndPort(providerName, port)

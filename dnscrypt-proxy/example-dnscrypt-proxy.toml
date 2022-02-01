@@ -69,6 +69,9 @@ dnscrypt_servers = true
 # Use servers implementing the DNS-over-HTTPS protocol
 doh_servers = true
 
+# Use servers implementing the Oblivious DoH protocol
+odoh_servers = false
+
 
 ## Require servers defined by remote sources to satisfy specific properties
 
@@ -125,7 +128,7 @@ keepalive = 30
 ## Multiple networks can be listed; they will be randomly chosen.
 ## These networks don't have to match your actual networks.
 
-# edns_client_subnet = ["0.0.0.0/0", "2001:db8::/32"]
+# edns_client_subnet = ['0.0.0.0/0', '2001:db8::/32']
 
 
 ## Response for blocked queries. Options are `refused`, `hinfo` (default) or
@@ -211,7 +214,7 @@ cert_refresh_delay = 240
 ## Bootstrap resolvers
 ##
 ## These are normal, non-encrypted DNS resolvers, that will be only used
-## for one-shot queries when retrieving the initial resolvers list and the
+## for one-shot queries when retrieving the initial resolvers list and if
 ## the system DNS configuration doesn't work.
 ##
 ## No user queries will ever be leaked through these resolvers, and they will
@@ -241,7 +244,7 @@ cert_refresh_delay = 240
 bootstrap_resolvers = ['9.9.9.9:53', '8.8.8.8:53']
 
 
-## Always use the fallback resolver before the system DNS settings.
+## Always use the bootstrap resolver before the system DNS settings.
 
 ignore_system_dns = true
 
@@ -328,7 +331,7 @@ block_undelegated = true
 ## TTL for synthetic responses sent when a request has been blocked (due to
 ## IPv6 or blocklists).
 
-reject_ttl = 600
+reject_ttl = 10
 
 
 
@@ -349,6 +352,8 @@ reject_ttl = 600
 ## Cloaking returns a predefined address for a specific name.
 ## In addition to acting as a HOSTS file, it can also return the IP address
 ## of a different name. It will also do CNAME flattening.
+## If 'cloak_ptr' is set, then PTR (reverse lookups) are enabled
+## for cloaking rules that do not contain wild cards.
 ##
 ## See the `example-cloaking-rules.txt` file for an example
 
@@ -357,6 +362,7 @@ reject_ttl = 600
 ## TTL used when serving entries in cloaking-rules.txt
 
 # cloak_ttl = 600
+# cloak_ptr = false
 
 
 
@@ -487,7 +493,7 @@ cache_neg_max_ttl = 600
 
 
 ######################################################
-#        Pattern-based blocking (blocklists)        #
+#        Pattern-based blocking (blocklists)         #
 ######################################################
 
 ## Blocklists are made of one pattern per line. Example of valid patterns:
@@ -550,7 +556,7 @@ cache_neg_max_ttl = 600
 
 
 ######################################################
-#   Pattern-based allow lists (blocklists bypass)   #
+#   Pattern-based allow lists (blocklists bypass)    #
 ######################################################
 
 ## Allowlists support the same patterns as blocklists
@@ -666,36 +672,51 @@ cache_neg_max_ttl = 600
   ## An example of a remote source from https://github.com/DNSCrypt/dnscrypt-resolvers
 
   [sources.'public-resolvers']
-  urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md', 'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/public-resolvers.md', 'https://download.dnscrypt.net/resolvers-list/v3/public-resolvers.md']
-  cache_file = 'public-resolvers.md'
-  minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
-  refresh_delay = 72
-  prefix = ''
+    urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/public-resolvers.md', 'https://download.dnscrypt.info/resolvers-list/v3/public-resolvers.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/public-resolvers.md']
+    cache_file = 'public-resolvers.md'
+    minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+    refresh_delay = 72
+    prefix = ''
 
   ## Anonymized DNS relays
 
   [sources.'relays']
-  urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/relays.md', 'https://download.dnscrypt.info/resolvers-list/v3/relays.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/relays.md', 'https://download.dnscrypt.net/resolvers-list/v3/relays.md']
-  cache_file = 'relays.md'
-  minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
-  refresh_delay = 72
-  prefix = ''
+    urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/relays.md', 'https://download.dnscrypt.info/resolvers-list/v3/relays.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/relays.md']
+    cache_file = 'relays.md'
+    minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+    refresh_delay = 72
+    prefix = ''
 
-  ## Quad9 over DNSCrypt - https://quad9.net/
+  ## ODoH (Oblivious DoH) servers and relays
+
+  # [sources.'odoh-servers']
+  #   urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/odoh-servers.md', 'https://download.dnscrypt.info/resolvers-list/v3/odoh-servers.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/odoh-servers.md']
+  #   cache_file = 'odoh-servers.md'
+  #   minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+  #   refresh_delay = 24
+  #   prefix = ''
+  # [sources.'odoh-relays']
+  #   urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/odoh-relays.md', 'https://download.dnscrypt.info/resolvers-list/v3/odoh-relays.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/odoh-relays.md']
+  #   cache_file = 'odoh-relays.md'
+  #   minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+  #   refresh_delay = 24
+  #   prefix = ''
+
+  ## Quad9
 
   # [sources.quad9-resolvers]
-  # urls = ['https://www.quad9.net/quad9-resolvers.md']
-  # minisign_key = 'RWQBphd2+f6eiAqBsvDZEBXBGHQBJfeG6G+wJPPKxCZMoEQYpmoysKUN'
-  # cache_file = 'quad9-resolvers.md'
-  # prefix = 'quad9-'
+  #   urls = ['https://www.quad9.net/quad9-resolvers.md']
+  #   minisign_key = 'RWQBphd2+f6eiAqBsvDZEBXBGHQBJfeG6G+wJPPKxCZMoEQYpmoysKUN'
+  #   cache_file = 'quad9-resolvers.md'
+  #   prefix = 'quad9-'
 
   ## Another example source, with resolvers censoring some websites not appropriate for children
   ## This is a subset of the `public-resolvers` list, so enabling both is useless
 
-  #  [sources.'parental-control']
-  #  urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/parental-control.md', 'https://download.dnscrypt.info/resolvers-list/v3/parental-control.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/parental-control.md', 'https://download.dnscrypt.net/resolvers-list/v3/parental-control.md']
-  #  cache_file = 'parental-control.md'
-  #  minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
+  # [sources.'parental-control']
+  #   urls = ['https://raw.githubusercontent.com/DNSCrypt/dnscrypt-resolvers/master/v3/parental-control.md', 'https://download.dnscrypt.info/resolvers-list/v3/parental-control.md', 'https://ipv6.download.dnscrypt.info/resolvers-list/v3/parental-control.md']
+  #   cache_file = 'parental-control.md'
+  #   minisign_key = 'RWQf6LRCGA9i53mlYecO4IzT51TGPpvWucNSCh1CBM0QTaLn73Y7GFO3'
 
 
 
@@ -706,7 +727,7 @@ cache_neg_max_ttl = 600
 [broken_implementations]
 
 # Cisco servers currently cannot handle queries larger than 1472 bytes, and don't
-# truncate reponses larger than questions as expected by the DNSCrypt protocol.
+# truncate responses larger than questions as expected by the DNSCrypt protocol.
 # This prevents large responses from being received over UDP and over relays.
 #
 # Older versions of the `dnsdist` server software had a bug with queries larger
@@ -734,7 +755,7 @@ fragments_blocked = ['cisco', 'cisco-ipv6', 'cisco-familyshield', 'cisco-familys
 
 #
 # creds = [
-#    { server_name='myserver', client_cert='client.crt', client_key='client.key' }
+#    { server_name='*', client_cert='client.crt', client_key='client.key' }
 # ]
 
 

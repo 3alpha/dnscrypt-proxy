@@ -1,3 +1,29 @@
+# Version 2.1.1
+  This is a bugfix only release, addressing regressions introduced in
+version 2.1.0:
+ - When using DoH, cached responses were not served any more when
+experiencing connectivity issues. This has been fixed.
+ - Time attributes in allow/block lists were ignored. This has been
+fixed.
+ - The TTL as served to clients is now rounded and starts decreasing
+before the first query is received.
+ - Time-based rules are properly handled again in
+generate-domains-blocklist.
+ - DoH/ODoH: entries with an IP address and using a non-standard port
+used to require help from a bootstrap resolver. This is not the case
+any more.
+
+# Version 2.1.0
+ - `dnscrypt-proxy` now includes support for Oblivious DoH.
+ - If the proxy is overloaded, cached and synthetic queries now keep being
+served, while non-cached queries are delayed.
+ - A deprecation warning was added for `fallback_resolvers`.
+ - Source URLs are now randomized.
+ - On some platforms, redirecting the application log to a file was not
+compatible with user switching; this has been fixed.
+ - `fallback_resolvers` was renamed to `bootstrap_resolvers` for
+clarity. Please update your configuration file accordingly.
+
 # Version 2.0.45
  - Configuration changes (to be required in versions 2.1.x):
    * `[blacklist]` has been renamed to `[blocked_names]`

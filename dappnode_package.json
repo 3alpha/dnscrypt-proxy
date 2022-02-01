@@ -1,12 +1,16 @@
 {
-  "name": "dnscrypt-proxy.public.dappnode.eth",
+  "name": "bindv2.dnp.dappnode.eth",
   "version": "0.1.0",
   "description": "DNS forwarder for DAppNode",
-  "type": "service",
+  "type": "dncore",
   "author": "Shardlabs",
   "categories": ["Developer tools"],
+  "architectures": [
+    "linux/amd64",
+    "linux/arm64"
+  ],
   "links": {
-    "homepage": "https://your-project-homepage-or-docs.io"
+    "homepage": "https://github.com/dappnode/DNP_BINDv2"
   },
   "license": "GLP-3.0"
 }

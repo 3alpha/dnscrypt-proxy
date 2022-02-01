@@ -158,27 +158,40 @@ func (xTransport *XTransport) rebuildTransport() {
 	if xTransport.httpProxyFunction != nil {
 		transport.Proxy = xTransport.httpProxyFunction
 	}
-	tlsClientConfig := tls.Config{}
+
 	clientCreds := xTransport.tlsClientCreds
-	if (clientCreds != DOHClientCreds{}) {
+
+	tlsClientConfig := tls.Config{}
+	certPool, certPoolErr := x509.SystemCertPool()
+
+	if clientCreds.rootCA != "" {
+		if certPool == nil {
+			dlog.Fatalf("Additional CAs not supported on this platform: %v", certPoolErr)
+		}
+		additionalCaCert, err := ioutil.ReadFile(clientCreds.rootCA)
+		if err != nil {
+			dlog.Fatal(err)
+		}
+		certPool.AppendCertsFromPEM(additionalCaCert)
+	}
+
+	if certPool != nil {
+		// Some operating systems don't include Let's Encrypt ISRG Root X1 certificate yet
+		var letsEncryptX1Cert = []byte(`-----BEGIN CERTIFICATE-----
+ MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAwTzELMAkGA1UEBhMCVVMxKTAnBgNVBAoTIEludGVybmV0IFNlY3VyaXR5IFJlc2VhcmNoIEdyb3VwMRUwEwYDVQQDEwxJU1JHIFJvb3QgWDEwHhcNMTUwNjA0MTEwNDM4WhcNMzUwNjA0MTEwNDM4WjBPMQswCQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJuZXQgU2VjdXJpdHkgUmVzZWFyY2ggR3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBYMTCCAiIwDQYJKoZIhvcNAQEBBQADggIPADCCAgoCggIBAK3oJHP0FDfzm54rVygch77ct984kIxuPOZXoHj3dcKi/vVqbvYATyjb3miGbESTtrFj/RQSa78f0uoxmyF+0TM8ukj13Xnfs7j/EvEhmkvBioZxaUpmZmyPfjxwv60pIgbz5MDmgK7iS4+3mX6UA5/TR5d8mUgjU+g4rk8Kb4Mu0UlXjIB0ttov0DiNewNwIRt18jA8+o+u3dpjq+sWT8KOEUt+zwvo/7V3LvSye0rgTBIlDHCNAymg4VMk7BPZ7hm/ELNKjD+Jo2FR3qyHB5T0Y3HsLuJvW5iB4YlcNHlsdu87kGJ55tukmi8mxdAQ4Q7e2RCOFvu396j3x+UCB5iPNgiV5+I3lg02dZ77DnKxHZu8A/lJBdiB3QW0KtZB6awBdpUKD9jf1b0SHzUvKBds0pjBqAlkd25HN7rOrFleaJ1/ctaJxQZBKT5ZPt0m9STJEadao0xAH0ahmbWnOlFuhjuefXKnEgV4We0+UXgVCwOPjdAvBbI+e0ocS3MFEvzG6uBQE3xDk3SzynTnjh8BCNAw1FtxNrQHusEwMFxIt4I7mKZ9YIqioymCzLq9gwQbooMDQaHWBfEbwrbwqHyGO0aoSCqI3Haadr8faqU9GY/rOPNk3sgrDQoo//fb4hVC1CLQJ13hef4Y53CIrU7m2Ys6xt0nUW7/vGT1M0NPAgMBAAGjQjBAMA4GA1UdDwEB/wQEAwIBBjAPBgNVHRMBAf8EBTADAQH/MB0GA1UdDgQWBBR5tFnme7bl5AFzgAiIyBpY9umbbjANBgkqhkiG9w0BAQsFAAOCAgEAVR9YqbyyqFDQDLHYGmkgJykIrGF1XIpu+ILlaS/V9lZLubhzEFnTIZd+50xx+7LSYK05qAvqFyFWhfFQDlnrzuBZ6brJFe+GnY+EgPbk6ZGQ3BebYhtF8GaV0nxvwuo77x/Py9auJ/GpsMiu/X1+mvoiBOv/2X/qkSsisRcOj/KKNFtY2PwByVS5uCbMiogziUwthDyC3+6WVwW6LLv3xLfHTjuCvjHIInNzktHCgKQ5ORAzI4JMPJ+GslWYHb4phowim57iaztXOoJwTdwJx4nLCgdNbOhdjsnvzqvHu7UrTkXWStAmzOVyyghqpZXjFaH3pO3JLF+l+/+sKAIuvtd7u+Nxe5AW0wdeRlN8NwdCjNPElpzVmbUq4JUagEiuTDkHzsxHpFKVK7q4+63SM1N95R1NbdWhscdCb+ZAJzVcoyi3B43njTOQ5yOf+1CceWxG1bQVs5ZufpsMljq4Ui0/1lvh+wjChP4kqKOJ2qxq4RgqsahDYVvTH9w7jXbyLeiNdd8XM2w9U/t7y0Ff/9yi0GE44Za4rF2LN9d11TPAmRGunUHBcnWEvgJBQl9nJEiU0Zsnvgc/ubhPgXRR4Xq37Z0j4r7g1SgEEzwxA57demyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
+ -----END CERTIFICATE-----`)
+		certPool.AppendCertsFromPEM(letsEncryptX1Cert)
+		tlsClientConfig.RootCAs = certPool
+	}
+
+	if clientCreds.clientCert != "" {
 		cert, err := tls.LoadX509KeyPair(clientCreds.clientCert, clientCreds.clientKey)
 		if err != nil {
 			dlog.Fatalf("Unable to use certificate [%v] (key: [%v]): %v", clientCreds.clientCert, clientCreds.clientKey, err)
 		}
-		if clientCreds.rootCA != "" {
-			caCert, err := ioutil.ReadFile(clientCreds.rootCA)
-			if err != nil {
-				dlog.Fatal(err)
-			}
-			systemCertPool, err := x509.SystemCertPool()
-			if err != nil {
-				dlog.Fatal(err)
-			}
-			systemCertPool.AppendCertsFromPEM(caCert)
-			tlsClientConfig.RootCAs = systemCertPool
-		}
 		tlsClientConfig.Certificates = []tls.Certificate{cert}
 	}
+
 	if xTransport.tlsDisableSessionTickets || xTransport.tlsCipherSuite != nil {
 		tlsClientConfig.SessionTicketsDisabled = xTransport.tlsDisableSessionTickets
 		if !xTransport.tlsDisableSessionTickets {
@@ -190,7 +203,10 @@ func (xTransport *XTransport) rebuildTransport() {
 		}
 	}
 	transport.TLSClientConfig = &tlsClientConfig
-	http2.ConfigureTransport(transport)
+	if http2Transport, err := http2.ConfigureTransports(transport); err != nil {
+		http2Transport.ReadIdleTimeout = timeout
+		http2Transport.AllowHTTP = false
+	}
 	xTransport.transport = transport
 }
 
@@ -389,6 +405,10 @@ func (xTransport *XTransport) Fetch(method string, url *url.URL, accept string, 
 	} else {
 		(*xTransport.transport).CloseIdleConnections()
 	}
+	statusCode := 503
+	if resp != nil {
+		statusCode = resp.StatusCode
+	}
 	if err != nil {
 		dlog.Debugf("[%s]: [%s]", req.URL, err)
 		if xTransport.tlsCipherSuite != nil && strings.Contains(err.Error(), "handshake failure") {
@@ -396,15 +416,15 @@ func (xTransport *XTransport) Fetch(method string, url *url.URL, accept string, 
 			xTransport.tlsCipherSuite = nil
 			xTransport.rebuildTransport()
 		}
-		return nil, 0, nil, 0, err
+		return nil, statusCode, nil, rtt, err
 	}
 	tls := resp.TLS
 	bin, err := ioutil.ReadAll(io.LimitReader(resp.Body, MaxHTTPBodyLength))
 	if err != nil {
-		return nil, resp.StatusCode, tls, 0, err
+		return nil, statusCode, tls, rtt, err
 	}
 	resp.Body.Close()
-	return bin, resp.StatusCode, tls, rtt, err
+	return bin, statusCode, tls, rtt, err
 }
 
 func (xTransport *XTransport) Get(url *url.URL, accept string, timeout time.Duration) ([]byte, int, *tls.ConnectionState, time.Duration, error) {
@@ -415,8 +435,7 @@ func (xTransport *XTransport) Post(url *url.URL, accept string, contentType stri
 	return xTransport.Fetch("POST", url, accept, contentType, body, timeout)
 }
 
-func (xTransport *XTransport) DoHQuery(useGet bool, url *url.URL, body []byte, timeout time.Duration) ([]byte, int, *tls.ConnectionState, time.Duration, error) {
-	dataType := "application/dns-message"
+func (xTransport *XTransport) dohLikeQuery(dataType string, useGet bool, url *url.URL, body []byte, timeout time.Duration) ([]byte, int, *tls.ConnectionState, time.Duration, error) {
 	if useGet {
 		qs := url.Query()
 		encBody := base64.RawURLEncoding.EncodeToString(body)
@@ -428,7 +447,10 @@ func (xTransport *XTransport) DoHQuery(useGet bool, url *url.URL, body []byte, t
 	return xTransport.Post(url, dataType, dataType, &body, timeout)
 }
 
-func (xTransport *XTransport) ObliviousDoHQuery(url *url.URL, body []byte, timeout time.Duration) ([]byte, int, *tls.ConnectionState, time.Duration, error) {
-	dataType := "application/oblivious-dns-message"
-	return xTransport.Post(url, dataType, dataType, &body, timeout)
+func (xTransport *XTransport) DoHQuery(useGet bool, url *url.URL, body []byte, timeout time.Duration) ([]byte, int, *tls.ConnectionState, time.Duration, error) {
+	return xTransport.dohLikeQuery("application/dns-message", useGet, url, body, timeout)
+}
+
+func (xTransport *XTransport) ObliviousDoHQuery(useGet bool, url *url.URL, body []byte, timeout time.Duration) ([]byte, int, *tls.ConnectionState, time.Duration, error) {
+	return xTransport.dohLikeQuery("application/oblivious-dns-message", useGet, url, body, timeout)
 }
