@@ -5,7 +5,7 @@ WORKDIR /go/src/dnscrypt-proxy
 RUN CGO_ENABLED=0 go build -mod vendor -ldflags="-s -w"
 
 
-FROM alpine:3.12.4  
+FROM alpine:3.12.12 
 
 WORKDIR /root/
 COPY --from=builder /go/src/dnscrypt-proxy/dnscrypt-proxy .
