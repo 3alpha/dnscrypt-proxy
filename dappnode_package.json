@@ -1,9 +1,9 @@
 {
-  "name": "bindv2.dnp.dappnode.eth",
+  "name": "bind.dnp.dappnode.eth",
   "version": "0.1.0",
   "description": "DNS forwarder for DAppNode",
   "type": "dncore",
-  "author": "Shardlabs",
+  "author": "DAppNode",
   "categories": ["Developer tools"],
   "architectures": [
     "linux/amd64",
