@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"net"
 	"strings"
+	"time"
 
 	"github.com/jedisct1/dlog"
 	"github.com/miekg/dns"
@@ -101,25 +102,20 @@ func (plugin *PluginForward) Eval(pluginsState *PluginsState, msg *dns.Msg) erro
 	if len(servers) == 0 {
 		return nil
 	}
+	hasFallback := len(fallback) > 0
 	server := servers[rand.Intn(len(servers))]
 	pluginsState.serverName = server
-	client := dns.Client{Net: pluginsState.serverProto, Timeout: pluginsState.timeout}
+	timeoutDivisor := 1
+	if hasFallback {
+		timeoutDivisor = 10
+	}
+	client := dns.Client{Net: pluginsState.serverProto, Timeout: pluginsState.timeout / time.Duration(timeoutDivisor)}
 	respMsg, _, err := client.Exchange(msg, server)
-	if err != nil {
-		return err
-	}
-	if respMsg.Truncated {
-		client.Net = "tcp"
-		respMsg, _, err = client.Exchange(msg, server)
-		if err != nil {
-			return err
-		}
-	}
-	if edns0 := respMsg.IsEdns0(); edns0 == nil || !edns0.Do() {
-		respMsg.AuthenticatedData = false
+	if err != nil && !hasFallback {
+		return nil
 	}
 
-	if respMsg.Rcode == dns.RcodeNameError && fallback != "" {
+	if err != nil || respMsg == nil || respMsg.Rcode == dns.RcodeNameError {
 		dlog.Noticef("Generating fallback response, fallback: %s", fallback)
 		synth := EmptyResponseFromMessage(msg)
 		synth.Rcode = dns.RcodeSuccess
@@ -139,6 +135,17 @@ func (plugin *PluginForward) Eval(pluginsState *PluginsState, msg *dns.Msg) erro
 		}
 
 		respMsg = synth
+	} else {
+		if respMsg.Truncated {
+			client.Net = "tcp"
+			respMsg, _, err = client.Exchange(msg, server)
+			if err != nil {
+				return err
+			}
+		}
+		if edns0 := respMsg.IsEdns0(); edns0 == nil || !edns0.Do() {
+			respMsg.AuthenticatedData = false
+		}
 	}
 
 	respMsg.Id = msg.Id
