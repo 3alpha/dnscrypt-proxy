@@ -68,6 +68,9 @@ type Proxy struct {
 	nxLogFile                     string
 	proxySecretKey                [32]byte
 	proxyPublicKey                [32]byte
+	ServerNames                   []string
+	DisabledServerNames           []string
+	requiredProps                 stamps.ServerInformalProperties
 	certRefreshDelayAfterFailure  time.Duration
 	timeout                       time.Duration
 	certRefreshDelay              time.Duration
@@ -95,9 +98,6 @@ type Proxy struct {
 	anonDirectCertFallback        bool
 	pluginBlockUndelegated        bool
 	child                         bool
-	requiredProps                 stamps.ServerInformalProperties
-	ServerNames                   []string
-	DisabledServerNames           []string
 	SourceIPv4                    bool
 	SourceIPv6                    bool
 	SourceDNSCrypt                bool
@@ -285,10 +285,16 @@ func (proxy *Proxy) updateRegisteredServers() error {
 				dlog.Criticalf("Unable to use source [%s]: [%s]", source.name, err)
 				return err
 			}
-			dlog.Warnf("Error in source [%s]: [%s] -- Continuing with reduced server count [%d]", source.name, err, len(registeredServers))
+			dlog.Warnf(
+				"Error in source [%s]: [%s] -- Continuing with reduced server count [%d]",
+				source.name,
+				err,
+				len(registeredServers),
+			)
 		}
 		for _, registeredServer := range registeredServers {
-			if registeredServer.stamp.Proto != stamps.StampProtoTypeDNSCryptRelay && registeredServer.stamp.Proto != stamps.StampProtoTypeODoHRelay {
+			if registeredServer.stamp.Proto != stamps.StampProtoTypeDNSCryptRelay &&
+				registeredServer.stamp.Proto != stamps.StampProtoTypeODoHRelay {
 				if len(proxy.ServerNames) > 0 {
 					if !includesName(proxy.ServerNames, registeredServer.name) {
 						continue
@@ -312,13 +318,19 @@ func (proxy *Proxy) updateRegisteredServers() error {
 					continue
 				}
 			}
-			if registeredServer.stamp.Proto == stamps.StampProtoTypeDNSCryptRelay || registeredServer.stamp.Proto == stamps.StampProtoTypeODoHRelay {
+			if registeredServer.stamp.Proto == stamps.StampProtoTypeDNSCryptRelay ||
+				registeredServer.stamp.Proto == stamps.StampProtoTypeODoHRelay {
 				var found bool
 				for i, currentRegisteredRelay := range proxy.registeredRelays {
 					if currentRegisteredRelay.name == registeredServer.name {
 						found = true
 						if currentRegisteredRelay.stamp.String() != registeredServer.stamp.String() {
-							dlog.Infof("Updating stamp for [%s] was: %s now: %s", registeredServer.name, currentRegisteredRelay.stamp.String(), registeredServer.stamp.String())
+							dlog.Infof(
+								"Updating stamp for [%s] was: %s now: %s",
+								registeredServer.name,
+								currentRegisteredRelay.stamp.String(),
+								registeredServer.stamp.String(),
+							)
 							proxy.registeredRelays[i].stamp = registeredServer.stamp
 							dlog.Debugf("Total count of registered relays %v", len(proxy.registeredRelays))
 						}
@@ -372,7 +384,15 @@ func (proxy *Proxy) udpListener(clientPc *net.UDPConn) {
 		packet := buffer[:length]
 		if !proxy.clientsCountInc() {
 			dlog.Warnf("Too many incoming connections (max=%d)", proxy.maxClients)
-			proxy.processIncomingQuery("udp", proxy.mainProto, packet, &clientAddr, clientPc, time.Now(), true) // respond synchronously, but only to cached/synthesized queries
+			proxy.processIncomingQuery(
+				"udp",
+				proxy.mainProto,
+				packet,
+				&clientAddr,
+				clientPc,
+				time.Now(),
+				true,
+			) // respond synchronously, but only to cached/synthesized queries
 			continue
 		}
 		go func() {
@@ -478,7 +498,12 @@ func (proxy *Proxy) prepareForRelay(ip net.IP, port int, encryptedQuery *[]byte)
 	*encryptedQuery = relayedQuery
 }
 
-func (proxy *Proxy) exchangeWithUDPServer(serverInfo *ServerInfo, sharedKey *[32]byte, encryptedQuery []byte, clientNonce []byte) ([]byte, error) {
+func (proxy *Proxy) exchangeWithUDPServer(
+	serverInfo *ServerInfo,
+	sharedKey *[32]byte,
+	encryptedQuery []byte,
+	clientNonce []byte,
+) ([]byte, error) {
 	upstreamAddr := serverInfo.UDPAddr
 	if serverInfo.Relay != nil && serverInfo.Relay.Dnscrypt != nil {
 		upstreamAddr = serverInfo.Relay.Dnscrypt.RelayUDPAddr
@@ -516,7 +541,12 @@ func (proxy *Proxy) exchangeWithUDPServer(serverInfo *ServerInfo, sharedKey *[32
 	return proxy.Decrypt(serverInfo, sharedKey, encryptedResponse, clientNonce)
 }
 
-func (proxy *Proxy) exchangeWithTCPServer(serverInfo *ServerInfo, sharedKey *[32]byte, encryptedQuery []byte, clientNonce []byte) ([]byte, error) {
+func (proxy *Proxy) exchangeWithTCPServer(
+	serverInfo *ServerInfo,
+	sharedKey *[32]byte,
+	encryptedQuery []byte,
+	clientNonce []byte,
+) ([]byte, error) {
 	upstreamAddr := serverInfo.TCPAddr
 	if serverInfo.Relay != nil && serverInfo.Relay.Dnscrypt != nil {
 		upstreamAddr = serverInfo.Relay.Dnscrypt.RelayTCPAddr
@@ -568,13 +598,22 @@ func (proxy *Proxy) clientsCountInc() bool {
 
 func (proxy *Proxy) clientsCountDec() {
 	for {
-		if count := atomic.LoadUint32(&proxy.clientsCount); count == 0 || atomic.CompareAndSwapUint32(&proxy.clientsCount, count, count-1) {
+		if count := atomic.LoadUint32(&proxy.clientsCount); count == 0 ||
+			atomic.CompareAndSwapUint32(&proxy.clientsCount, count, count-1) {
 			break
 		}
 	}
 }
 
-func (proxy *Proxy) processIncomingQuery(clientProto string, serverProto string, query []byte, clientAddr *net.Addr, clientPc net.Conn, start time.Time, onlyCached bool) []byte {
+func (proxy *Proxy) processIncomingQuery(
+	clientProto string,
+	serverProto string,
+	query []byte,
+	clientAddr *net.Addr,
+	clientPc net.Conn,
+	start time.Time,
+	onlyCached bool,
+) []byte {
 	var response []byte = nil
 	if len(query) < MinDNSPacketSize {
 		return response
@@ -775,7 +814,7 @@ func (proxy *Proxy) processIncomingQuery(clientProto string, serverProto string,
 			if pluginsState.dnssec {
 				dlog.Debug("A response had an invalid DNSSEC signature")
 			} else {
-				dlog.Infof("Server [%v] returned temporary error code SERVFAIL -- Invalid DNSSEC signature received or server may be experiencing connectivity issues", serverInfo.Name)
+				dlog.Infof("A response with status code 2 was received - this is usually a temporary, remote issue with the configuration of the domain name")
 				serverInfo.noticeFailure(proxy)
 			}
 		} else {
