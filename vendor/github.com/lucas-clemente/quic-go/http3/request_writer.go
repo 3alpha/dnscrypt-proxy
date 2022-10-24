@@ -58,10 +58,9 @@ func (w *requestWriter) writeHeaders(wr io.Writer, req *http.Request, gzip bool)
 		return err
 	}
 
-	buf := &bytes.Buffer{}
-	hf := headersFrame{Length: uint64(w.headerBuf.Len())}
-	hf.Write(buf)
-	if _, err := wr.Write(buf.Bytes()); err != nil {
+	b := make([]byte, 0, 128)
+	b = (&headersFrame{Length: uint64(w.headerBuf.Len())}).Append(b)
+	if _, err := wr.Write(b); err != nil {
 		return err
 	}
 	_, err := wr.Write(w.headerBuf.Bytes())
@@ -233,8 +232,8 @@ func authorityAddr(scheme string, authority string) (addr string) {
 // validPseudoPath reports whether v is a valid :path pseudo-header
 // value. It must be either:
 //
-//     *) a non-empty string starting with '/'
-//     *) the string '*', for OPTIONS requests.
+//	*) a non-empty string starting with '/'
+//	*) the string '*', for OPTIONS requests.
 //
 // For now this is only used a quick check for deciding when to clean
 // up Opaque URLs before sending requests from the Transport.
