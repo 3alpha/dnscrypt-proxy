@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 
 	"github.com/lucas-clemente/quic-go/internal/protocol"
 	"github.com/lucas-clemente/quic-go/quicvarint"
@@ -65,7 +64,7 @@ func parseNextFrame(r io.Reader, unknownFrameHandler unknownFrameHandlerFunc) (f
 		case 0xd: // MAX_PUSH_ID
 		}
 		// skip over unknown frames
-		if _, err := io.CopyN(ioutil.Discard, qr, int64(l)); err != nil {
+		if _, err := io.CopyN(io.Discard, qr, int64(l)); err != nil {
 			return nil, err
 		}
 	}
@@ -75,18 +74,18 @@ type dataFrame struct {
 	Length uint64
 }
 
-func (f *dataFrame) Write(b *bytes.Buffer) {
-	quicvarint.Write(b, 0x0)
-	quicvarint.Write(b, f.Length)
+func (f *dataFrame) Append(b []byte) []byte {
+	b = quicvarint.Append(b, 0x0)
+	return quicvarint.Append(b, f.Length)
 }
 
 type headersFrame struct {
 	Length uint64
 }
 
-func (f *headersFrame) Write(b *bytes.Buffer) {
-	quicvarint.Write(b, 0x1)
-	quicvarint.Write(b, f.Length)
+func (f *headersFrame) Append(b []byte) []byte {
+	b = quicvarint.Append(b, 0x1)
+	return quicvarint.Append(b, f.Length)
 }
 
 const settingDatagram = 0xffd277
@@ -143,8 +142,8 @@ func parseSettingsFrame(r io.Reader, l uint64) (*settingsFrame, error) {
 	return frame, nil
 }
 
-func (f *settingsFrame) Write(b *bytes.Buffer) {
-	quicvarint.Write(b, 0x4)
+func (f *settingsFrame) Append(b []byte) []byte {
+	b = quicvarint.Append(b, 0x4)
 	var l protocol.ByteCount
 	for id, val := range f.Other {
 		l += quicvarint.Len(id) + quicvarint.Len(val)
@@ -152,13 +151,14 @@ func (f *settingsFrame) Write(b *bytes.Buffer) {
 	if f.Datagram {
 		l += quicvarint.Len(settingDatagram) + quicvarint.Len(1)
 	}
-	quicvarint.Write(b, uint64(l))
+	b = quicvarint.Append(b, uint64(l))
 	if f.Datagram {
-		quicvarint.Write(b, settingDatagram)
-		quicvarint.Write(b, 1)
+		b = quicvarint.Append(b, settingDatagram)
+		b = quicvarint.Append(b, 1)
 	}
 	for id, val := range f.Other {
-		quicvarint.Write(b, id)
-		quicvarint.Write(b, val)
+		b = quicvarint.Append(b, id)
+		b = quicvarint.Append(b, val)
 	}
+	return b
 }
