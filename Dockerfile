@@ -1,15 +1,16 @@
-FROM golang:1.16.2 AS builder
+FROM golang:1.20.2 AS builder
 
-COPY . src/
+COPY go.mod go.sum src/
+COPY dnscrypt-proxy src/dnscrypt-proxy
+COPY vendor src/vendor
+
 WORKDIR /go/src/dnscrypt-proxy
 RUN CGO_ENABLED=0 go build -mod vendor -ldflags="-s -w"
 
 
-FROM alpine:3.12.12 
+FROM alpine:3.17.2
 
-WORKDIR /root/
 COPY --from=builder /go/src/dnscrypt-proxy/dnscrypt-proxy .
-COPY dnscrypt-proxy.toml forwarding-rules.txt ./
-RUN touch cloaking-rules.txt
+COPY cloaking-rules.txt dnscrypt-proxy.toml forwarding-rules.txt ./
 
 CMD ["./dnscrypt-proxy"] 

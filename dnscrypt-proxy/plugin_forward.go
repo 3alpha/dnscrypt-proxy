@@ -5,7 +5,6 @@ import (
 	"math/rand"
 	"net"
 	"strings"
-	"time"
 
 	"github.com/jedisct1/dlog"
 	"github.com/miekg/dns"
@@ -105,17 +104,13 @@ func (plugin *PluginForward) Eval(pluginsState *PluginsState, msg *dns.Msg) erro
 	hasFallback := len(fallback) > 0
 	server := servers[rand.Intn(len(servers))]
 	pluginsState.serverName = server
-	timeoutDivisor := 1
-	if hasFallback {
-		timeoutDivisor = 10
-	}
-	client := dns.Client{Net: pluginsState.serverProto, Timeout: pluginsState.timeout / time.Duration(timeoutDivisor)}
+	client := dns.Client{Net: pluginsState.serverProto, Timeout: pluginsState.timeout}
 	respMsg, _, err := client.Exchange(msg, server)
+	dlog.Noticef("Question: %s", msg.Question[0].String())
+
 	if err != nil && !hasFallback {
 		return nil
-	}
-
-	if err != nil || respMsg == nil || respMsg.Rcode == dns.RcodeNameError {
+	} else if hasFallback && (err != nil || respMsg == nil || respMsg.Rcode == dns.RcodeNameError) {
 		dlog.Noticef("Generating fallback response, fallback: %s", fallback)
 		synth := EmptyResponseFromMessage(msg)
 		synth.Rcode = dns.RcodeSuccess
