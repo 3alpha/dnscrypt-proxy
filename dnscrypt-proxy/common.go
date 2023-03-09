@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"errors"
-	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
@@ -172,7 +171,7 @@ func ExtractHostAndPort(str string, defaultPort int) (host string, port int) {
 }
 
 func ReadTextFile(filename string) (string, error) {
-	bin, err := ioutil.ReadFile(filename)
+	bin, err := os.ReadFile(filename)
 	if err != nil {
 		return "", err
 	}

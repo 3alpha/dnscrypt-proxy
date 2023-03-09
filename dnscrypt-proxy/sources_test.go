@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -15,9 +14,9 @@ import (
 	"time"
 
 	"github.com/hectane/go-acl"
-	"github.com/powerman/check"
-
+	"github.com/jedisct1/dlog"
 	"github.com/jedisct1/go-minisign"
+	"github.com/powerman/check"
 )
 
 type SourceFixture struct {
@@ -69,7 +68,7 @@ type SourceTestExpect struct {
 }
 
 func readFixture(t *testing.T, name string) []byte {
-	bin, err := ioutil.ReadFile(filepath.Join("testdata", name))
+	bin, err := os.ReadFile(filepath.Join("testdata", name))
 	if err != nil {
 		t.Fatalf("Unable to read test fixture %s: %v", name, err)
 	}
@@ -84,9 +83,9 @@ func writeSourceCache(t *testing.T, e *SourceTestExpect) {
 		path := e.cachePath + f.suffix
 		perms := f.perms
 		if perms == 0 {
-			perms = 0644
+			perms = 0o644
 		}
-		if err := ioutil.WriteFile(path, f.content, perms); err != nil {
+		if err := os.WriteFile(path, f.content, perms); err != nil {
 			t.Fatalf("Unable to write cache file %s: %v", path, err)
 		}
 		if err := acl.Chmod(path, perms); err != nil {
@@ -108,8 +107,8 @@ func writeSourceCache(t *testing.T, e *SourceTestExpect) {
 func checkSourceCache(c *check.C, e *SourceTestExpect) {
 	for _, f := range e.cache {
 		path := e.cachePath + f.suffix
-		_ = acl.Chmod(path, 0644) // don't worry if this fails, reading it will catch the same problem
-		got, err := ioutil.ReadFile(path)
+		_ = acl.Chmod(path, 0o644) // don't worry if this fails, reading it will catch the same problem
+		got, err := os.ReadFile(path)
 		c.DeepEqual(got, f.content, "Unexpected content for cache file '%s', err %v", path, err)
 		if f.suffix != "" {
 			continue
@@ -134,7 +133,7 @@ func loadSnakeoil(t *testing.T, d *SourceTestData) {
 }
 
 func loadTestSourceNames(t *testing.T, d *SourceTestData) {
-	files, err := ioutil.ReadDir(filepath.Join("testdata", "sources"))
+	files, err := os.ReadDir(filepath.Join("testdata", "sources"))
 	if err != nil {
 		t.Fatalf("Unable to load list of test sources: %v", err)
 	}
@@ -165,7 +164,7 @@ func generateFixtureState(t *testing.T, d *SourceTestData, suffix, file string, 
 	case TestStateReadErr, TestStateReadSigErr:
 		f.content, f.length = []byte{}, "1"
 	case TestStateOpenErr, TestStateOpenSigErr:
-		f.content, f.perms = d.fixtures[TestStateCorrect][file].content[:1], 0200
+		f.content, f.perms = d.fixtures[TestStateCorrect][file].content[:1], 0o200
 	}
 	d.fixtures[state][file] = f
 }
@@ -196,7 +195,7 @@ func loadFixtures(t *testing.T, d *SourceTestData) {
 }
 
 func makeTempDir(t *testing.T, d *SourceTestData) {
-	name, err := ioutil.TempDir("", "sources_test.go."+t.Name())
+	name, err := os.MkdirTemp("", "sources_test.go."+t.Name())
 	if err != nil {
 		t.Fatalf("Unable to create temporary directory: %v", err)
 	}
@@ -363,14 +362,17 @@ func prepSourceTestDownload(
 }
 
 func setupSourceTestCase(t *testing.T, d *SourceTestData, i int,
-	cacheTest *SourceTestState, downloadTest []SourceTestState) (id string, e *SourceTestExpect) {
+	cacheTest *SourceTestState, downloadTest []SourceTestState,
+) (id string, e *SourceTestExpect) {
 	id = strconv.Itoa(d.n) + "-" + strconv.Itoa(i)
 	e = &SourceTestExpect{
 		cachePath: filepath.Join(d.tempDir, id),
 		mtime:     d.timeNow,
 	}
-	e.Source = &Source{name: id, urls: []*url.URL{}, format: SourceFormatV2, minisignKey: d.key,
-		cacheFile: e.cachePath, cacheTTL: DefaultPrefetchDelay * 3, prefetchDelay: DefaultPrefetchDelay}
+	e.Source = &Source{
+		name: id, urls: []*url.URL{}, format: SourceFormatV2, minisignKey: d.key,
+		cacheFile: e.cachePath, cacheTTL: DefaultPrefetchDelay * 3, prefetchDelay: DefaultPrefetchDelay,
+	}
 	if cacheTest != nil {
 		prepSourceTestCache(t, d, e, d.sources[i], *cacheTest)
 		i = (i + 1) % len(d.sources) // make the cached and downloaded fixtures different
@@ -380,6 +382,10 @@ func setupSourceTestCase(t *testing.T, d *SourceTestData, i int,
 }
 
 func TestNewSource(t *testing.T) {
+	if testing.Verbose() {
+		dlog.SetLogLevel(dlog.SeverityDebug)
+		dlog.UseSyslog(false)
+	}
 	teardown, d := setupSourceTest(t)
 	defer teardown()
 	checkResult := func(t *testing.T, e *SourceTestExpect, got *Source, err error) {
@@ -441,6 +447,10 @@ func TestNewSource(t *testing.T) {
 }
 
 func TestPrefetchSources(t *testing.T) {
+	if testing.Verbose() {
+		dlog.SetLogLevel(dlog.SeverityDebug)
+		dlog.UseSyslog(false)
+	}
 	teardown, d := setupSourceTest(t)
 	defer teardown()
 	checkResult := func(t *testing.T, expects []*SourceTestExpect, got time.Duration) {
