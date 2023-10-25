@@ -110,7 +110,7 @@ func (plugin *PluginForward) Eval(pluginsState *PluginsState, msg *dns.Msg) erro
 
 	if err != nil && !hasFallback {
 		return nil
-	} else if hasFallback && (err != nil || respMsg == nil || respMsg.Rcode == dns.RcodeNameError) {
+	} else if hasFallback && (err != nil || respMsg == nil || respMsg.Opcode == dns.OpcodeQuery && respMsg.Rcode != dns.RcodeSuccess) {
 		dlog.Noticef("Generating fallback response, fallback: %s", fallback)
 		synth := EmptyResponseFromMessage(msg)
 		synth.Rcode = dns.RcodeSuccess
