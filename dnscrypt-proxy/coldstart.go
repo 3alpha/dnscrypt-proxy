@@ -23,7 +23,7 @@ type CaptivePortalHandler struct {
 func (captivePortalHandler *CaptivePortalHandler) Stop() {
 	close(captivePortalHandler.cancelChannel)
 	for len(captivePortalHandler.countChannel) < captivePortalHandler.channelCount {
-		time.Sleep(time.Millisecond)
+		time.Sleep(10 * time.Millisecond)
 	}
 	close(captivePortalHandler.countChannel)
 }
@@ -146,13 +146,13 @@ func ColdStart(proxy *Proxy) (*CaptivePortalHandler, error) {
 	if len(proxy.captivePortalMapFile) == 0 {
 		return nil, nil
 	}
-	bin, err := ReadTextFile(proxy.captivePortalMapFile)
+	lines, err := ReadTextFile(proxy.captivePortalMapFile)
 	if err != nil {
 		dlog.Warn(err)
 		return nil, err
 	}
 	ipsMap := make(CaptivePortalMap)
-	for lineNo, line := range strings.Split(string(bin), "\n") {
+	for lineNo, line := range strings.Split(lines, "\n") {
 		line = TrimAndStripInlineComments(line)
 		if len(line) == 0 {
 			continue

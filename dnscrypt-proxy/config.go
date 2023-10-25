@@ -93,6 +93,7 @@ type Config struct {
 	LogMaxBackups            int                         `toml:"log_files_max_backups"`
 	TLSDisableSessionTickets bool                        `toml:"tls_disable_session_tickets"`
 	TLSCipherSuite           []uint16                    `toml:"tls_cipher_suite"`
+	TLSKeyLogFile            string                      `toml:"tls_key_log_file"`
 	NetprobeAddress          string                      `toml:"netprobe_address"`
 	NetprobeTimeout          int                         `toml:"netprobe_timeout"`
 	OfflineMode              bool                        `toml:"offline_mode"`
@@ -145,6 +146,7 @@ func newConfig() Config {
 		LogMaxBackups:            1,
 		TLSDisableSessionTickets: false,
 		TLSCipherSuite:           nil,
+		TLSKeyLogFile:            "",
 		NetprobeTimeout:          60,
 		OfflineMode:              false,
 		RefusedCodeInResponses:   false,
@@ -631,6 +633,16 @@ func ConfigLoad(proxy *Proxy, flags *ConfigFlags) error {
 	proxy.skipAnonIncompatibleResolvers = config.AnonymizedDNS.SkipIncompatible
 	proxy.anonDirectCertFallback = config.AnonymizedDNS.DirectCertFallback
 
+	if len(config.TLSKeyLogFile) > 0 {
+		f, err := os.OpenFile(config.TLSKeyLogFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err != nil {
+			dlog.Fatalf("Unable to create key log file [%s]: [%s]", config.TLSKeyLogFile, err)
+		}
+		dlog.Warnf("TLS key log file [%s] enabled", config.TLSKeyLogFile)
+		proxy.xTransport.keyLogWriter = f
+		proxy.xTransport.rebuildTransport()
+	}
+
 	if config.DoHClientX509AuthLegacy.Creds != nil {
 		return errors.New("[tls_client_auth] has been renamed to [doh_client_x509_auth] - Update your config file")
 	}
@@ -852,7 +864,9 @@ func (config *Config) loadSources(proxy *Proxy) error {
 		}
 		proxy.registeredServers = append(proxy.registeredServers, RegisteredServer{name: serverName, stamp: stamp})
 	}
-	proxy.updateRegisteredServers()
+	if err := proxy.updateRegisteredServers(); err != nil {
+		return err
+	}
 	rs1 := proxy.registeredServers
 	rs2 := proxy.serversInfo.registeredServers
 	rand.Shuffle(len(rs1), func(i, j int) {
@@ -883,9 +897,8 @@ func (config *Config) loadSource(proxy *Proxy, cfgSourceName string, cfgSource *
 	}
 	if cfgSource.RefreshDelay <= 0 {
 		cfgSource.RefreshDelay = 72
-	} else if cfgSource.RefreshDelay > 168 {
-		cfgSource.RefreshDelay = 168
 	}
+	cfgSource.RefreshDelay = Min(168, Max(24, cfgSource.RefreshDelay))
 	source, err := NewSource(
 		cfgSourceName,
 		proxy.xTransport,
@@ -897,7 +910,7 @@ func (config *Config) loadSource(proxy *Proxy, cfgSourceName string, cfgSource *
 		cfgSource.Prefix,
 	)
 	if err != nil {
-		if len(source.in) <= 0 {
+		if len(source.bin) <= 0 {
 			dlog.Criticalf("Unable to retrieve source [%s]: [%s]", cfgSourceName, err)
 			return err
 		}
